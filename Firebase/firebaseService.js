@@ -1,5 +1,6 @@
-import { auth, db } from "@/config/firebaseConfig";
+import { auth, db, storage } from "@/config/firebaseConfig";
 import { getDocs, collection, addDoc, deleteDoc, doc, updateDoc, getDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export class FirebaseService {
     studentCollectionRef = collection(db, "students");
@@ -246,6 +247,58 @@ export class FirebaseService {
             throw error;
         }
     }
+
+    async uploadFile(file, path, metadata = {}) {
+        try {
+          
+            const storageRef = ref(storage, path);
+
+          
+            const snapshot = await uploadBytes(storageRef, file, metadata);
+
+         
+            const downloadURL = await getDownloadURL(snapshot.ref);
+
+            return {
+                downloadURL,
+                fullPath: snapshot.ref.fullPath,
+                name: snapshot.ref.name
+            };
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            throw error;
+        }
+    }
+
+    // Function to upload a file and associate it with a document in Firestore
+    async uploadFileAndAddToFirestore(file, path, collectionName, docData) {
+        try {
+            // Upload the file
+            const fileData = await this.uploadFile(file, path);
+
+            // Add file data to the document data
+            const dataWithFile = {
+                ...docData,
+                fileURL: fileData.downloadURL,
+                filePath: fileData.fullPath,
+                fileName: fileData.name
+            };
+
+            // Add the document to Firestore
+            const collectionRef = collection(db, collectionName);
+            const docRef = await addDoc(collectionRef, dataWithFile);
+
+            return {
+                documentId: docRef.id,
+                ...dataWithFile
+            };
+        } catch (error) {
+            console.error("Error uploading file and adding to Firestore:", error);
+            throw error;
+        }
+    }
+
+
 }
 
 const firebaseService = new FirebaseService();
